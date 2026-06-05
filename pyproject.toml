@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phantom-wan-mlx"
+version = "0.0.0"
+description = "Apple MLX port of Phantom-Wan — multi-subject subject-to-video (Wan2.1 substrate)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mlx",
+    "numpy",
+    "pillow",
+    "imageio",
+    "imageio-ffmpeg",
+    "transformers",
+]
+
+[project.optional-dependencies]
+parity = ["torch", "torchvision", "safetensors"]
+
+[tool.setuptools.packages.find]
+include = ["phantom_wan_mlx*"]

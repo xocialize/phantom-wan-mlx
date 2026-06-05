@@ -1,0 +1,9 @@
+phantom-wan-mlx
+Apple MLX port of Phantom-Wan (ByteDance, https://github.com/Phantom-video/Phantom).
+
+Derived from:
+- Phantom-video/Phantom — Apache-2.0 (code + weights, bytedance-research/Phantom)
+- Wan2.1 (Wan-AI) — VAE / umT5 / scheduler substrate
+- mlx-video (Blaizzy) — Wan MLX backbone reused via the LongCat-Video port
+
+Licensed under the Apache License, Version 2.0.
