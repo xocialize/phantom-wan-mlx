@@ -371,6 +371,38 @@ own pace; not the streaming-decode path.
    CausalConv3d instances in `Decoder3d` to size the feat_cache list. ~10 min
    of code inspection during the port itself.
 
+## Measured memory data (2026-06-05) — answers open question #2
+
+Whole-sequence `WanVAE.decode` peak GPU memory, 832×480, on the M5 Max (128 GB), random latent (decode only, no DiT):
+
+| frames | f_latent | decode peak | result |
+|--------|----------|-------------|--------|
+| 17 | 5 | **47.5 GB** | ok (this was the Phase-D demo length) |
+| 33 | 9 | **80.6 GB** | ok |
+| 49 | 13 | **115.9 GB** | ok (last comfortable) |
+| 65 | 17 | **140.4 GB** | "ok" but **over 128 GB physical → swap** (slow/risky) |
+| 81 | 21 | — | **OOM crash** |
+
+**Verdict: open Q#2 is answered — YES, phantom-wan is hard memory-bound on the VAE decode.** Peak grows ~linearly with frame count (~2.3 GB/latent-pixel-frame here): ~49 frames is the last comfortable length (116 GB), 65 frames spills into swap (140 GB), and the standard Wan **81-frame output OOM-crashes**. Whole-sequence decode caps usable output at ~49 frames.
+
+**Correction to this doc's premise:** the existing **lossy `decode_tiled` also CRASHES at 81 frames** — it does *spatial* trapezoidal tiling, but the blow-up is *temporal* (all 21 latent frames decoded at full res simultaneously). So there is **no working long-video decode path today**, lossy or lossless. The streaming/temporal-chunked decode (Stage A) is therefore a **capability unblock for standard-length video, not a quality/memory optimization over a working path.** This upgrades its priority from "nice win" to "required to ship ≥65-frame Phantom output."
+
+**Sequencing implication:** do Stage A (streaming decode) **as the first item of Phase E / a Phase D.5**, before publishing — otherwise the published 1.3B is capped at ≤49 frames (below typical 81-frame Wan output). Effort estimate (3–5 hr consumer-side) stands; benefits bernini-r identically.
+
+## PORTED — Phase 1 complete (2026-06-05)
+
+`phantom_wan_mlx/streaming_decode.py` (`decode_streaming(vae, z, chunk_lat=1)`) + `tests/smoke/test_decode_stream.py`; wired into `pipeline_mlx.s2v(lossless_decode=True)` (default on). 5 tests green.
+
+**Simpler than the doc assumed — no "Rep" sentinel.** mlx-video's stock `upsample3d` **always doubles every frame** (no first-chunk frame-0 skip, unlike diffusers/Wan22/LongCat), so the temporal op is just a cache-threaded `time_conv` (causal zero-pad first chunk, prev-chunk tail after) + the channel→frame interleave + per-frame spatial up. The `_REP` logic from Lance's NHWC version does **not** apply here. ResidualBlock + downsample-Resample already thread `feat_cache`; only the `upsample3d` time_conv and the top-level chunk loop were missing.
+
+**Correctness — BIT-EXACT on `mx.cpu`** (true fp32, T_lat ∈ {1,2,3,5}: max|Δ| = 0.0). On the Apple **GPU** chunked-vs-whole differs ~4e-3 — that is fp32 tf32-like conv reduction-order noise (chunked runs more/smaller convs), NOT a logic bug; whole-seq GPU decode is itself ~tf32 off true-fp32 by the same order. **Gate correctness on cpu** (the MuseTalk/Zonos lesson), not gpu. The debugging arc (5e-3 seed at the first 2-frame ResidualBlock, growing downstream; every sub-component bit-exact in isolation → reduction-order numerics) is the tell.
+
+**Memory — flat in length (the payoff):** streaming GPU peak is **~20 GB at every length** (17f 19.7 / 33f 19.9 / 65f 20.1 / 81f 20.4 / 121f 20.6 GB) and **81- and 121-frame video decode fine** — whole-seq OOM'd at 81f. One-chunk extent (chunk_lat=1).
+
+**⚠️ OOM-ceiling caveat (corrected):** the whole-seq OOM table above (OOM at 81f) was measured **while a SigLIP2 KonIQ training run was consuming unified memory in another process** — so the *absolute* whole-seq cliff sits higher on a clean machine; the per-frame GB figures and the ~linear scaling are still valid, and streaming's flat ~20 GB beats whole-seq's linear growth regardless. Re-measure the clean whole-seq ceiling opportunistically, but it doesn't change the conclusion.
+
+**Phase 2 (spatial halo-tile) still deferred** — Phase 1's flat ~20 GB already unblocks the full 81-frame envelope; the high-res suffix tiling only matters if we push to 4K / much longer or want the floor below ~20 GB. Mirror to bernini-r (Stage C.1, ~30 min) when convenient.
+
 ## Handoff state
 
 - **No code touched yet.** This doc is the pre-port investigation only.

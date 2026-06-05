@@ -37,7 +37,7 @@ def _save_video(frames_bchw, path, fps=16):
 def s2v(prompt: str, reference_images: list, output_path: str,
         size=(832, 480), frame_num: int = 81, steps: int = 50, shift: float = 5.0,
         guide_img: float = 5.0, guide_text: float = 7.5, seed: int = 0,
-        phantom_pth=None, vae_pth=None, verbose: bool = True):
+        phantom_pth=None, vae_pth=None, lossless_decode: bool = True, verbose: bool = True):
     """Generate a subject-consistent video from a prompt + reference images."""
     w_px, h_px = size
     phantom_pth = phantom_pth or ROOT / "weights/phantom/Phantom-Wan-1.3B.pth"
@@ -69,8 +69,12 @@ def s2v(prompt: str, reference_images: list, output_path: str,
                     seed=seed, verbose=verbose)
     del model
 
-    # decode
+    # decode — streaming (lossless, flat memory) unblocks long video; whole-seq OOMs >~49 frames
     dec = W.load_wan_vae(vae_pth, encoder=False)
-    video = dec.decode(x0[None])
+    if lossless_decode:
+        from .streaming_decode import decode_streaming
+        video = decode_streaming(dec, x0[None], chunk_lat=1)
+    else:
+        video = dec.decode(x0[None])
     mx.eval(video)
     return _save_video(video, output_path, fps=cfg_run.sample_fps)
