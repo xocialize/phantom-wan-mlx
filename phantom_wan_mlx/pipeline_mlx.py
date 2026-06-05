@@ -26,6 +26,15 @@ NEG_PROMPT = (
 )
 
 
+def encode_prompt(prompt: str, phantom_pth=None):
+    """Offline umT5 encode → [L, 4096] context. For the Swift escape hatch: encode prompts
+    in Python, save the embeddings, pass them to a Swift consumer via precomputed_context
+    (bypasses the ftfy cleaner + SentencePiece tokenizer + 11 GB umT5 at Swift runtime)."""
+    _, cfg = W.load_phantom_dit(phantom_pth or ROOT / "weights/phantom/Phantom-Wan-1.3B.pth")
+    t5, tok = W.load_umt5(cfg)
+    return W.encode_text(t5, tok, prompt, cfg.text_len)
+
+
 def _save_video(frames_bchw, path, fps=16):
     import imageio
     # frames_bchw: mx [1,3,T,H,W] in [-1,1] -> uint8 list
@@ -37,7 +46,8 @@ def _save_video(frames_bchw, path, fps=16):
 def s2v(prompt: str, reference_images: list, output_path: str,
         size=(832, 480), frame_num: int = 81, steps: int = 50, shift: float = 5.0,
         guide_img: float = 5.0, guide_text: float = 7.5, seed: int = 0,
-        phantom_pth=None, vae_pth=None, lossless_decode: bool = True, verbose: bool = True):
+        phantom_pth=None, vae_pth=None, lossless_decode: bool = True,
+        precomputed_context=None, precomputed_context_null=None, verbose: bool = True):
     """Generate a subject-consistent video from a prompt + reference images."""
     w_px, h_px = size
     phantom_pth = phantom_pth or ROOT / "weights/phantom/Phantom-Wan-1.3B.pth"
@@ -46,11 +56,17 @@ def s2v(prompt: str, reference_images: list, output_path: str,
     cfg_run = PhantomWanConfig.s2v_1_3b()
     model, cfg = W.load_phantom_dit(phantom_pth)               # cfg = mlx-video WanModelConfig
 
-    # text
-    t5, tok = W.load_umt5(cfg)
-    ctx = W.encode_text(t5, tok, prompt, cfg.text_len)
-    ctx_null = W.encode_text(t5, tok, NEG_PROMPT, cfg.text_len)
-    del t5
+    # text — escape hatch: precomputed [L,4096] umT5 context bypasses cleaning+tokenizer+umT5
+    # entirely (Swift-port safety net: encode prompts in Python, ship the embeddings). See
+    # encode_prompt() + docs/development/swift-port-concerns.md.
+    if precomputed_context is not None:
+        ctx = precomputed_context
+        ctx_null = precomputed_context_null if precomputed_context_null is not None else precomputed_context
+    else:
+        t5, tok = W.load_umt5(cfg)
+        ctx = W.encode_text(t5, tok, prompt, cfg.text_len)
+        ctx_null = W.encode_text(t5, tok, NEG_PROMPT, cfg.text_len)
+        del t5
 
     # reference latents (encoder VAE)
     enc = W.load_wan_vae(vae_pth, encoder=True)
