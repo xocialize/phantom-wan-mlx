@@ -16,12 +16,39 @@ from pathlib import Path
 import mlx.core as mx
 from mlx.utils import tree_flatten
 
-from mlx_video.models.wan_2 import convert
 from mlx_video.models.wan_2.config import WanModelConfig
 from mlx_video.models.wan_2.wan_2 import WanModel
 
+# NOTE: mlx_video.models.wan_2.convert imports torch (only needed to load the raw .pth /
+# Wan VAE .pth in dev). Import it LAZILY inside the loaders so the native-safetensors
+# runtime path (load_native / from_pretrained_mlx) stays torch-free.
+
 # reused umT5 (Wan2.2's umt5-xxl == Wan2.1's; mlx-video text_encoder format)
 BERNINI_T5 = Path("/Users/dustinnielson/DEV_INT/bernini-r-mlx-weights/ckpt-bf16/t5_encoder.safetensors")
+
+
+# precision-sensitive small projections kept hi-precision under quantization (Lens lesson)
+QUANT_SKIP = ("patch_embedding_proj", "text_embedding", "time_embedding", "time_projection", "head")
+
+
+def quant_predicate(path, module):
+    import mlx.nn as nn
+    return isinstance(module, nn.Linear) and not any(s in path for s in QUANT_SKIP)
+
+
+def save_native(model, path: str | Path):
+    """Materialize + save a model's MLX-native params (torch-free reload)."""
+    from mlx.utils import tree_flatten
+
+    weights = dict(tree_flatten(model.parameters()))
+    mx.eval(weights)
+    mx.save_safetensors(str(path), weights)
+
+
+def load_native(model, path: str | Path):
+    model.load_weights(str(path))
+    mx.eval(model.parameters())
+    return model
 
 
 def load_phantom_dit(pth_path: str | Path, variant: str = "1.3B"):
@@ -30,6 +57,7 @@ def load_phantom_dit(pth_path: str | Path, variant: str = "1.3B"):
     model = WanModel(cfg)
     assert "freqs" in dict(tree_flatten(model.parameters())), "WanModel must init `freqs` buffer"
 
+    from mlx_video.models.wan_2 import convert
     raw = convert.load_torch_weights(str(pth_path))
     san = convert.sanitize_wan_transformer_weights(raw)
     model.load_weights(list(san.items()), strict=False)   # strict=False: `freqs` stays as init
@@ -64,6 +92,7 @@ def load_wan_vae(pth_path: str | Path, encoder: bool = False):
     from mlx_video.models.wan_2.vae import WanVAE
 
     vae = WanVAE(z_dim=16, encoder=encoder)
+    from mlx_video.models.wan_2 import convert
     raw = convert.load_torch_weights(str(pth_path))
     san = convert.sanitize_wan_vae_weights(raw)
     vae.load_weights(list(san.items()), strict=False)

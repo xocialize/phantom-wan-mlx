@@ -1,0 +1,41 @@
+{
+  "model": "Phantom-Wan-1.3B",
+  "framework": "mlx",
+  "task": "subject-to-video",
+  "dtype": "bfloat16",
+  "dim": 1536,
+  "num_layers": 30,
+  "num_heads": 12,
+  "in_dim": 16,
+  "patch_size": [
+    1,
+    2,
+    2
+  ],
+  "cross_attention_dim": 4096,
+  "vae_z_dim": 16,
+  "vae_stride": [
+    4,
+    8,
+    8
+  ],
+  "quantization_4bit": {
+    "group_size": 64,
+    "bits": 4,
+    "skip": [
+      "patch_embedding_proj",
+      "text_embedding",
+      "time_embedding",
+      "time_projection",
+      "head"
+    ],
+    "cosine_vs_bf16": 0.99633
+  },
+  "sample": {
+    "shift": 5.0,
+    "steps": 50,
+    "guide_img": 5.0,
+    "guide_text": 7.5,
+    "fps": 16
+  }
+}
