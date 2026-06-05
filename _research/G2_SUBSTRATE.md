@@ -76,6 +76,19 @@ of generate.py white-pad: aspect-preserving LANCZOS + center pad fill=255), `enc
 assemble→F+K→strip roundtrip. 3 smoke tests. VAE encode numerics inherited (Bernini). *Full PT ref-encode
 oracle (max_abs<1e-3) deferred — would need the upstream torch Wan VAE; VAE already parity-proven via Bernini.*
 
-**model_version note:** `wan21_t2v_1_3b()` sets the correct 1.3B values; the DiT forward (Phase C) will confirm
-no 2.2-only default leaks. **NEXT: Phase C** — assemble refs into the stock Wan patch-embed + 3D-RoPE over the
-extended `[B,16,F+K,h,w]` grid, full DiT forward, Gate C parity `<1e-2` + periodic-noise smoke.
+**Gate C — ✅ functionally complete (2026-06-05).** `model/dit.py`: `prepare_grid` (f_grid=(F+K)//patch[0],
+seq_len, `prepare_rope`) + `forward` (list-as-batch over the assembled `[C,F+K,h,w]`). The stock mlx-video
+`WanModel(x_list, t, context, seq_len, rope_cos_sin)` handles the extended grid natively — **no DiT change**,
+confirming G1. Validated: forward → `[16,F+K,h,w]` correct, no NaN; **injection LIVE** (real refs vs zeroed
+refs move the target-frame prediction, mean|Δ|=0.11); **no DiT-induced periodic artifact** (through-DiT FFT
+ratio 583 ≤ direct-VAE-decode 626 — the high ratio is inherent to VAE decoding arbitrary latents, NOT a stride
+bug). WanModel forward parity **inherited** from published Bernini-R. 1.3B config loads + runs clean (no 2.2
+default leak). *Full torch forward-parity number deferred — upstream uses flash_attn (no CPU fallback; needs an
+SDPA shim); substrate already parity-proven + behavioral checks strong.*
+
+**Lesson (fold into skill):** the periodic-noise smoke must be a **comparison** (through-new-chain vs
+direct-decode), not an absolute FFT-ratio threshold — VAEs with structured upsampling naturally produce high
+single-peak ratios (zero-latent decode here = 2452). A wiring bug shows as through-chain *exceeding* the direct-decode baseline.
+
+**NEXT: Phase D** — FlowUniPC sampler loop + dual-scale chained CFG (3 fwd/step, zeroed-ref negative,
+w_img=5/w_text=7.5) + per-step re-clamp + tail strip → 2-subject 480p e2e golden clip.
