@@ -24,9 +24,13 @@
 From `configs/wan_s2v_1_3B.py` + `shared_config.py` (already in `config.py`): dim 1536 · ffn 8960 · freq 256 · 12 heads · 30 layers · in/out 16 · text_dim 4096 · patch (1,2,2) · qk_norm · cross_attn_norm · eps 1e-6 · `model_type='t2v'` (text-only cross-attn, no CLIP). VAE z_dim 16, stride (4,8,8); text_len 512; num_train_timesteps 1000. Inference: shift 5.0, 50 steps, guide_img 5.0 / guide_text 7.5.
 
 ## Download (when ready)
+Layout matches `utils/weights.py` (`weights/phantom/`, `weights/wan-base/`; umT5 reused from Bernini-R):
 ```bash
-huggingface-cli download Wan-AI/Wan2.1-T2V-1.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a --local-dir ./Wan2.1-T2V-1.3B
-huggingface-cli download bytedance-research/Phantom Phantom-Wan-1.3B.pth --revision 926cb19b8273d3841edcf905ca4ddb57f8e43207 --local-dir ./Phantom-Wan-Models
+huggingface-cli download bytedance-research/Phantom Phantom-Wan-1.3B.pth \
+  --revision 926cb19b8273d3841edcf905ca4ddb57f8e43207 --local-dir ./weights/phantom
+huggingface-cli download Wan-AI/Wan2.1-T2V-1.3B Wan2.1_VAE.pth \
+  --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a --local-dir ./weights/wan-base
+# umT5: reuse bernini-r-mlx-weights/ckpt-bf16/t5_encoder.safetensors (same umt5-xxl) — see weights.py
 ```
 
 ## Parity oracle

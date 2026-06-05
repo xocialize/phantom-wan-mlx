@@ -1,8 +1,26 @@
 """Phantom-Wan S2V config (truth from upstream phantom_wan/configs, G3).
 
 1.3B is the locked v1 oracle. Substrate = Wan2.1 (NOT Wan2.2).
+
+Pinned checkpoints (G3, see _research/G3_CHECKPOINT.md):
+- Phantom weights: bytedance-research/Phantom @ 926cb19b8273d3841edcf905ca4ddb57f8e43207
+    v1: Phantom-Wan-1.3B.pth  (single .pth, ~5.69 GB, torch.load + strict=False)
+    14B: Phantom_Wan_14B-*-of-00006.safetensors + index (later)
+- Substrate: Wan-AI/Wan2.1-T2V-1.3B @ 37ec512624d61f7aa208f7ea8140a131f93afc9a
+    Wan2.1_VAE.pth · models_t5_umt5-xxl-enc-bf16.pth · google/umt5-xxl/
 """
 from dataclasses import dataclass
+
+PHANTOM_REPO = "bytedance-research/Phantom"
+PHANTOM_REVISION = "926cb19b8273d3841edcf905ca4ddb57f8e43207"
+PHANTOM_1_3B_FILE = "Phantom-Wan-1.3B.pth"          # single .pth → torch.load branch
+PHANTOM_14B_BASENAME = "Phantom_Wan_14B"            # sharded safetensors (later)
+
+WAN21_REPO = "Wan-AI/Wan2.1-T2V-1.3B"
+WAN21_REVISION = "37ec512624d61f7aa208f7ea8140a131f93afc9a"
+WAN21_VAE_FILE = "Wan2.1_VAE.pth"
+WAN21_T5_FILE = "models_t5_umt5-xxl-enc-bf16.pth"
+WAN21_TOKENIZER = "google/umt5-xxl"
 
 
 @dataclass

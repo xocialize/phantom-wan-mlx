@@ -90,5 +90,15 @@ SDPA shim); substrate already parity-proven + behavioral checks strong.*
 direct-decode), not an absolute FFT-ratio threshold — VAEs with structured upsampling naturally produce high
 single-peak ratios (zero-latent decode here = 2452). A wiring bug shows as through-chain *exceeding* the direct-decode baseline.
 
-**NEXT: Phase D** — FlowUniPC sampler loop + dual-scale chained CFG (3 fwd/step, zeroed-ref negative,
-w_img=5/w_text=7.5) + per-step re-clamp + tail strip → 2-subject 480p e2e golden clip.
+**Gate D — ✅ PASS (2026-06-05) — multi-subject S2V generates end-to-end.** `sampling.py:sample_s2v`
+(FlowUniPCScheduler shift=5 + dual-scale chained CFG 3 fwd/step: pos_it=refs/text, pos_i=refs/null,
+neg=ZERO-refs/null; `noise=neg+5·(pos_i−neg)+7.5·(pos_it−pos_i)`; per-step re-clamp `cat([latent[:,:-K],
+clean_refs])`; strip tail) + `pipeline_mlx.py:s2v` (from_pretrained + encode refs + sample + VAE decode +
+mp4). **Real 2-subject generation** (girl + dog refs, 17 frames 832×480, 25 steps, ~9 min on M5): output
+`outputs/phantom_demo.mp4` — **both reference subjects composed into one coherent meadow scene matching the
+prompt.** Visual proof the injection + CFG + sampler all work together. ~13–18 s/step (3 forwards). Tiny
+loop (3 steps F=3) validated mechanics first (40.8 s).
+
+**NEXT: Phase E** — 4-subject composition, optional 14B, quantize (int4 transformer Linears, keep VAE/umT5
+bf16, post-quant cosine), publish `mlx-community/Phantom-Wan-1.3B-{bf16,4bit}`. Optional: full torch e2e
+parity (needs flash_attn SDPA shim); perf (cross_kv_cache to cut the 3 forwards' text re-encode).
