@@ -401,7 +401,9 @@ Whole-sequence `WanVAE.decode` peak GPU memory, 832×480, on the M5 Max (128 GB)
 
 **⚠️ OOM-ceiling caveat (corrected):** the whole-seq OOM table above (OOM at 81f) was measured **while a SigLIP2 KonIQ training run was consuming unified memory in another process** — so the *absolute* whole-seq cliff sits higher on a clean machine; the per-frame GB figures and the ~linear scaling are still valid, and streaming's flat ~20 GB beats whole-seq's linear growth regardless. Re-measure the clean whole-seq ceiling opportunistically, but it doesn't change the conclusion.
 
-**Phase 2 (spatial halo-tile) still deferred** — Phase 1's flat ~20 GB already unblocks the full 81-frame envelope; the high-res suffix tiling only matters if we push to 4K / much longer or want the floor below ~20 GB. Mirror to bernini-r (Stage C.1, ~30 min) when convenient.
+**Phase 2 (spatial halo-tile) still deferred** — Phase 1's flat ~20 GB already unblocks the full 81-frame envelope; the high-res suffix tiling only matters if we push to 4K / much longer or want the floor below ~20 GB.
+
+**Stage C — mirrored to bernini-r ✅ (2026-06-05).** Bernini-R uses the *same* `mlx_video.models.wan_2.vae` 16-ch VAE (confirmed: its encode returns `[1,16,1,…]`), so `streaming_decode.py` dropped in **verbatim** — bit-exact on cpu (T_lat 1/2/3/5, max|Δ|=0.0) against Bernini's own `vae.safetensors`; wired into both decode sites via `_vae_decode(lossless=True)` default; 4 tests. Pushed `xocialize/bernini-r-mlx@495e940`. (LongCat's forked diffusers-schema VAE is the one that would need real adaptation — still deferred.)
 
 ## Handoff state
 
