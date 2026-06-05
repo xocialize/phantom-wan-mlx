@@ -61,7 +61,21 @@ weights real (blocks.0.self_attn.q mean|w|=0.023), `freqs` populated. → `phant
 **mlx-video API confirmed:** `convert.sanitize_wan_{transformer,vae,t5}_weights`; `vae.WanVAE(z_dim=16)`;
 `utils.load_vae_{encoder,decoder}(model_path)` (expect pre-converted MLX safetensors); T5 via `AutoTokenizer.from_pretrained("google/umt5-xxl")`.
 
-**Remaining Phase A:** load VAE (`load_wan_vae`) + umT5; Gate A = VAE encode/decode + T5 parity (inherited-green
-from Bernini-R/mlx-video — confirm, don't re-port). Then Phase B (reference encode).
-Note: `WanModelConfig` default `model_version="2.2"` — `wan21_t2v_1_3b()` sets the right values; verify it
-doesn't leave a 2.2-only default (VAE stride etc.) that affects the 2.1 forward.
+**Gate A — ✅ PASS (2026-06-05).** All three substrate components load + run with Phantom checkpoints:
+- DiT turnkey (above).
+- VAE (`load_wan_vae`, `WanVAE(z_dim=16, encoder=True/False)`): encode `[1,3,1,256,256]→[1,16,1,32,32]`,
+  decode clean. Both halves from the one `Wan2.1_VAE.pth` (strict=False each).
+- umT5 (`load_umt5`, reuses Bernini's `t5_encoder.safetensors` + `AutoTokenizer("google/umt5-xxl")`):
+  text → `(seq,4096)` context, 4.0s load.
+Numerical parity **inherited** from the published Bernini-R/mlx-video substrate (not re-derived). 2 smoke tests.
+
+**Gate B — ✅ functionally complete (2026-06-05).** `model/reference.py`: `preprocess_ref` (verbatim PIL port
+of generate.py white-pad: aspect-preserving LANCZOS + center pad fill=255), `encode_references` (K refs →
+`[1,16,K,h,w]` trailing latent frames, each ref [-1,1] singleton-temporal VAE-encode + `cat(axis=2)`),
+`assemble_input`/`strip_refs`. Validated: white-pad both aspect branches, shape `[1,16,2,60,104]` @ 832×480,
+assemble→F+K→strip roundtrip. 3 smoke tests. VAE encode numerics inherited (Bernini). *Full PT ref-encode
+oracle (max_abs<1e-3) deferred — would need the upstream torch Wan VAE; VAE already parity-proven via Bernini.*
+
+**model_version note:** `wan21_t2v_1_3b()` sets the correct 1.3B values; the DiT forward (Phase C) will confirm
+no 2.2-only default leaks. **NEXT: Phase C** — assemble refs into the stock Wan patch-embed + 3D-RoPE over the
+extended `[B,16,F+K,h,w]` grid, full DiT forward, Gate C parity `<1e-2` + periodic-noise smoke.

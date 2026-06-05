@@ -37,13 +37,35 @@ def load_phantom_dit(pth_path: str | Path, variant: str = "1.3B"):
     return model, cfg
 
 
-def load_wan_vae(pth_path: str | Path):
-    """Load the Wan2.1 16-ch VAE (mlx-video WanVAE)."""
+def load_umt5(config, t5_path: str | Path = BERNINI_T5):
+    """Load umT5-XXL (reused from Bernini-R; same umt5-xxl, mlx-video format) + tokenizer."""
+    from transformers import AutoTokenizer
+
+    from mlx_video.models.wan_2.utils import load_t5_encoder
+
+    t5 = load_t5_encoder(Path(t5_path), config)
+    tokenizer = AutoTokenizer.from_pretrained("google/umt5-xxl")
+    return t5, tokenizer
+
+
+def encode_text(t5, tokenizer, prompt: str, text_len: int = 512):
+    from mlx_video.models.wan_2.utils import encode_text as _encode_text
+
+    return _encode_text(t5, tokenizer, prompt, text_len)
+
+
+def load_wan_vae(pth_path: str | Path, encoder: bool = False):
+    """Load the Wan2.1 16-ch VAE (mlx-video WanVAE).
+
+    encoder=True -> encoder half (for encoding reference images, Phase B);
+    encoder=False -> decoder half (for decoding the output video).
+    The .pth holds both halves; each instance loads its relevant keys (strict=False).
+    """
     from mlx_video.models.wan_2.vae import WanVAE
 
-    vae = WanVAE(z_dim=16)
+    vae = WanVAE(z_dim=16, encoder=encoder)
     raw = convert.load_torch_weights(str(pth_path))
-    san = convert.sanitize_wan_vae_weights(raw) if hasattr(convert, "sanitize_wan_vae_weights") else raw
+    san = convert.sanitize_wan_vae_weights(raw)
     vae.load_weights(list(san.items()), strict=False)
     mx.eval(vae.parameters())
     return vae
